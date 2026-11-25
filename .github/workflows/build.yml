@@ -1,0 +1,62 @@
+name: Build Phoenix TV APK
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Restore signing key
+        run: base64 -d signing/phoenix.jks.b64 > app/phoenix.jks
+
+      - name: Build release APK
+        run: gradle assembleRelease --no-daemon --stacktrace
+
+      - name: Verify APK
+        run: |
+          ls -lh app/build/outputs/apk/release/app-release.apk
+          file app/build/outputs/apk/release/app-release.apk
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: phoenix-tv-release
+          path: app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+
+      - name: Publish APK to dist branch
+        run: |
+          mkdir -p dist
+          cp app/build/outputs/apk/release/app-release.apk dist/phoenix-tv.apk
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f dist/phoenix-tv.apk
+          if git diff --cached --quiet; then
+            echo "APK unchanged, skip commit"
+          else
+            git commit -m "chore: publish release APK [skip ci]"
+            git push
+          fi

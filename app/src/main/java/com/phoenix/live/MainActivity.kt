@@ -23,7 +23,7 @@ import org.videolan.libvlc.Media
 import org.videolan.libvlc.MediaPlayer
 import org.videolan.libvlc.util.VLCVideoLayout
 
-data class Channel(val name: String, val liveId: String)
+data class Channel(val name: String, val liveId: String, val fallbackUrl: String)
 
 class MainActivity : Activity() {
 
@@ -33,10 +33,14 @@ class MainActivity : Activity() {
             "https://api.fengshows.cn/hub/live/auth-url?live_id=%s&live_qa=HD"
     }
 
+    // 官方 ifeng 直连源，作为 API 被 WAF 拦截（HTTP 418）时的兜底
     private val channels = listOf(
-        Channel("凤凰中文台", "f7f48462-9b13-485b-8101-7b54716411ec"),
-        Channel("凤凰资讯台", "7c96b084-60e1-40a9-89c5-682b994fb680"),
-        Channel("凤凰香港台", "15e02d92-1698-416c-af2f-3e9a872b4d78")
+        Channel("凤凰中文台", "f7f48462-9b13-485b-8101-7b54716411ec",
+            "https://playtv-live.ifeng.com/live/06OLEGEGM4G.m3u8"),
+        Channel("凤凰资讯台", "7c96b084-60e1-40a9-89c5-682b994fb680",
+            "https://playtv-live.ifeng.com/live/06OLEEWQKN4.m3u8"),
+        Channel("凤凰香港台", "15e02d92-1698-416c-af2f-3e9a872b4d78",
+            "https://playtv-live.ifeng.com/live/06OLEGEGM4G.m3u8")
     )
 
     private var currentIndex = 0
@@ -146,7 +150,11 @@ class MainActivity : Activity() {
         val indexAtRequest = currentIndex
 
         loadJob = scope.launch {
-            val url = withContext(Dispatchers.IO) { fetchLiveUrl(channels[indexAtRequest].liveId) }
+            val channel = channels[indexAtRequest]
+            // 先试官方 API，失败则回退到 ifeng 直连源
+            val url = withContext(Dispatchers.IO) {
+                fetchLiveUrl(channel.liveId) ?: channel.fallbackUrl
+            }
             if (destroyed || indexAtRequest != currentIndex) return@launch
             if (url.isNullOrEmpty()) {
                 setStatus("获取地址失败，请检查网络后按 OK 重试")

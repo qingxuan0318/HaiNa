@@ -50,12 +50,16 @@ jobs:
         run: |
           mkdir -p dist
           cp app/build/outputs/apk/release/app-release.apk dist/phoenix-tv.apk
+          rm -rf dist/chunks
+          mkdir -p dist/chunks
+          split -b 8m -d -a 2 dist/phoenix-tv.apk dist/chunks/part_
+          sha256sum dist/phoenix-tv.apk > dist/chunks/SHA256SUMS
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -f dist/phoenix-tv.apk
+          git add -f dist/phoenix-tv.apk dist/chunks
           if git diff --cached --quiet; then
             echo "APK unchanged, skip commit"
           else
-            git commit -m "chore: publish release APK [skip ci]"
+            git commit -m "chore: publish release APK + chunks [skip ci]"
             git push
           fi
